@@ -84,11 +84,11 @@ class TradingEnvironment(gym.Env):
         #but still we need to know how much to buy...
         #########
 
-        self.action_space = spaces.Tuple((
+        """self.action_space = spaces.Tuple((
             spaces.Discrete(3),
             spaces.Box(np.NINF, np.inf, (1,))
-        ))
-        #self.action_space = spaces.Discrete(3)
+        ))"""
+        self.action_space = spaces.Discrete(3)
         self.reset()
 
     def _get_next_transition(self, action=None):
@@ -102,28 +102,28 @@ class TradingEnvironment(gym.Env):
         state = TradingState(money=self.money, stock_owned=self.stock_owned, **ticker_value._asdict())
 
         # TODO: handle action
-        # action_space = spaces.Tuple(spaces.Discrete(3),spaces.Box(np.NINF,np.inf))
-        # action[1] is the amount of stock bought/sold
+        # self.action_space = spaces.Discrete(3)
 
         # NOTE: 
         # This works but it really don't consider the long term holding
 
         # TODO: calculate reward
         reward = 0
-        if action:
-            self.stock_owned += action[1]
+        if action != None:
             # recall Actions: { long, neutral, short }
             # long: change in stock held * (closing price - opening price) + transaction cost
-            if action[0] == 0:
-                reward = action[1] * (state[2] - self.last_ticker_price) + self.transaction_cost
+            if action == 0:
+                self.stock_owned += 1
+                reward = (state[2] - self.last_ticker_price) + self.transaction_cost
             # neutral: num held * closing price + held capital - inital capital
             # QUESTION:
             # wouldn't this cost bot to helf indefinitely? guess not..
-            if action[0] == 1:
+            if action == 1:
                 reward = self.stock_owned * state[2] + self.money - self.initial_money
             # short: change in stock held * (opening price - closing price) + transaction cost
-            if action[0] == 2:
-                reward = action[1] * (self.last_ticker_price - state[2]) + self.transaction_cost
+            if action == 2:
+                self.stock_owned -= 1
+                reward = (self.last_ticker_price - state[2]) + self.transaction_cost
 
         self.last_ticker_price = state[2]
 

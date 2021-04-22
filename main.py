@@ -14,9 +14,9 @@ while not done:
 """
 
 for x in range(10):
-    s, r, done, _ = env.step([0,1])
+    s, r, done, _ = env.step(0)
     print(f'New state: s:{s},r:{r}')
 
 for x in range(10):
-    s, r, done, _ = env.step([1,0])
+    s, r, done, _ = env.step(1)
     print(f'New state: s:{s},r:{r}')
