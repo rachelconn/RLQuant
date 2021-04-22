@@ -8,6 +8,7 @@ from gym import spaces
 import numpy as np
 
 TickerValue = namedtuple('TickerValue', ('price', 'MA', 'EMA', 'MACD', 'RSI'))
+TradingState = namedtuple('TradingState', ('money', 'stock_owned') + TickerValue._fields)
 
 default_fromdate = datetime(2018, 1, 1)
 default_todate = datetime(2021, 4, 1)
@@ -84,7 +85,7 @@ class TradingEnvironment(gym.Env):
         done = self.position_in_trajectory == len(self.trajectory) - 1
         self.position_in_trajectory += 1
 
-        state = (self.money, self.stock_owned, *ticker_value)
+        state = TradingState(money=self.money, stock_owned=self.stock_owned, **ticker_value._asdict())
 
         # TODO: handle action
         # TODO: calculate reward
