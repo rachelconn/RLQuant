@@ -46,9 +46,10 @@ def create_trajectory(ticker, fromdate=default_fromdate, todate=default_todate):
 
 class TradingEnvironment(gym.Env):
     """ gym environment that trades a single stock """
-    def __init__(self, ticker, initial_money=10_000):
+    def __init__(self, ticker, transaction_cost = 0, initial_money=10_000):
         self.ticker = ticker
         self.initial_money = initial_money
+        self.transaction_cost = transaction_cost
 
         # State space: values defined below
         low = np.array([
@@ -72,8 +73,18 @@ class TradingEnvironment(gym.Env):
         self.observation_space = spaces.Box(low, high, dtype=np.float32)
 
         # Actions: { long, neutral, short }
-        self.action_space = spaces.Discrete(3)
+        # NOTE:
+        #########
+        #long position just means you think it will go up,
+        #actually it does not have any specific meaning.
+        #even if taking the long position, we will still need
+        #to specify how much equity we will purchase
+        #p.s. it is true we can allow "shorting the stock"
+        #but still we need to know how much to buy...
+        #########
 
+        self.action_space = spaces.Tuple(spaces.Discrete(3),spaces.Box(np.NINF,np.inf))
+        #self.action_space = spaces.Discrete(3)
         self.reset()
 
     def _get_next_transition(self, action=None):
@@ -87,8 +98,32 @@ class TradingEnvironment(gym.Env):
         state = (self.money, self.stock_owned, *ticker_value)
 
         # TODO: handle action
+        # action_space = spaces.Tuple(spaces.Discrete(3),spaces.Box(np.NINF,np.inf))
+        # action[1] is the amount of stock bought/sold
+
+        # NOTE: 
+        # This works but it really don't consider the long term(well say you bought today but it go up tomorrow)
+        self.stock_owned += action[1]
+
+
         # TODO: calculate reward
         reward = 0
+        # recall Actions: { long, neutral, short }
+        # long: change in stock held * (closing price - opening price) + transaction cost
+        if action[0] == 0:
+            reward = action[1] * (state[0] - last_ticker_price) + self.transaction_cost
+        # neutral: num held * closing price + held capital - inital capital
+        # QUESTION:
+        # wouldn't this cost bot to helf indefinitely? guess not..
+        if action[0] == 1:
+            reward = self.stock_owned * state[0] + self.money - self.initial_money
+        # short: change in stock held * (opening price - closing price) + transaction cost
+        if action[0] == 2:
+            reward = action[1] * (last_ticker_price - state[0]) + self.transaction_cost
+
+        self.last_ticker_price = state[0]
+
+
         return state, reward, done, {}
 
     def reset(self):
@@ -105,6 +140,7 @@ class TradingEnvironment(gym.Env):
         self.position_in_trajectory = 0
 
         state, *_ = self._get_next_transition()
+        self.last_ticker_price = state[0] #aka openign price
         return state
 
     def step(self, action):
