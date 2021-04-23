@@ -148,3 +148,10 @@ class TradingEnvironment(gym.Env):
 
     def step(self, action):
         return self._get_next_transition(action)
+
+    # Stub methods to make compatible with the gym interface
+    def render(self):
+        pass
+
+    def close(self):
+        pass
