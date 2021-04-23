@@ -109,23 +109,23 @@ class TradingEnvironment(gym.Env):
 
         # TODO: calculate reward
         reward = 0
-        if action != None:
+        if action is not None:
             # recall Actions: { long, neutral, short }
             # long: change in stock held * (closing price - opening price) + transaction cost
             if action == 0:
                 self.stock_owned += 1
-                reward = (state[2] - self.last_ticker_price) + self.transaction_cost
+                reward = (state.price - self.last_ticker_price) + self.transaction_cost
             # neutral: num held * closing price + held capital - inital capital
             # QUESTION:
             # wouldn't this cost bot to helf indefinitely? guess not..
             if action == 1:
-                reward = self.stock_owned * state[2] + self.money - self.initial_money
+                reward = self.stock_owned * state.price + self.money - self.initial_money
             # short: change in stock held * (opening price - closing price) + transaction cost
             if action == 2:
                 self.stock_owned -= 1
-                reward = (self.last_ticker_price - state[2]) + self.transaction_cost
+                reward = (self.last_ticker_price - state.price) + self.transaction_cost
 
-        self.last_ticker_price = state[2]
+        self.last_ticker_price = state.price
 
 
         return state, reward, done, {}
@@ -144,7 +144,6 @@ class TradingEnvironment(gym.Env):
         self.position_in_trajectory = 0
 
         state, *_ = self._get_next_transition()
-        self.last_ticker_price = state[0] #aka openign price
         return state
 
     def step(self, action):
