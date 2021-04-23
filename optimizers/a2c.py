@@ -56,38 +56,53 @@ def critic_loss():
 
     return loss
 
+def build_a2c_network(env, *_, lr, layer_nodes=[64, 64]):
+    """ Builds a basic A2C network fitting the environment's state/action spaces.
+        We probably won't want to use this going forward since LSTM networks are
+        generally more successful
+    """
+    state_size = (env.observation_space.shape[0],)
+    nA = env.action_space.n
+
+    state = Input(shape=state_size, name='state')
+    current_layer = state
+    for nodes_for_layer in layer_nodes[:-1]:
+        current_layer = Dense(nodes_for_layer, activation='relu')(current_layer)
+
+    # Actor and critic heads have a seperated final fully connected layer
+    current_actor_layer = Dense(layer_nodes[-1], activation='tanh')(current_layer)
+    current_actor_layer = Dense(nA, activation='tanh')(current_actor_layer)
+    current_critic_layer = Dense(layer_nodes[-1], activation='relu')(current_layer)
+
+    policy = Softmax(name='policy')(current_actor_layer)
+    state_value = Dense(1, activation='linear', name='state_value')(current_critic_layer)
+
+    model = Model(inputs=[state], outputs=[policy, state_value])
+    model.compile(optimizer=Adam(lr=lr),
+                    loss={'policy': actor_loss(),
+                        'state_value': critic_loss()},
+                    loss_weights={'policy': 1.0, 'state_value': 1.0})
+    return model
+
 class A2C():
-    def __init__(self, env, lr=0.001, layer_nodes=[64, 64]):
-        self.lr = lr
-        self.layer_nodes = layer_nodes
+    """ A2C optimizer.
+        If this doesn't suffice to properly learn the environment, there are a couple potential improvements:
+            - Include entropy in loss calculations
+            - Use n-step bootstrapping instead of 1-step
+            - Dynamic learning rate
+    """
+    def __init__(self, env, *_, lr=0.001, gamma=0.99, network=None):
+        # Environment data
         self.env = env
         self.nA = self.env.action_space.n
-        self.state_size = (self.env.observation_space.shape[0],)
-        self.actor_critic = self.build_actor_critic()
-        self.batch_size = 30
-        self.gamma = 0.99
         self.episodes_run = 0
 
-    def build_actor_critic(self):
-        state = Input(shape=self.state_size, name='state')
-        current_layer = state
-        for nodes_for_layer in self.layer_nodes[:-1]:
-            current_layer = Dense(nodes_for_layer, activation='relu')(current_layer)
+        # Hyperparameters
+        self.lr = lr
+        self.gamma = gamma
 
-        # Actor and critic heads have a seperated final fully connected layer
-        current_actor_layer = Dense(self.layer_nodes[-1], activation='tanh')(current_layer)
-        current_actor_layer = Dense(self.nA, activation='tanh')(current_actor_layer)
-        current_critic_layer = Dense(self.layer_nodes[-1], activation='relu')(current_layer)
-
-        policy = Softmax(name='policy')(current_actor_layer)
-        state_value = Dense(1, activation='linear', name='state_value')(current_critic_layer)
-
-        model = Model(inputs=[state], outputs=[policy, state_value])
-        model.compile(optimizer=Adam(lr=self.lr),
-                      loss={'policy': actor_loss(),
-                            'state_value': critic_loss()},
-                      loss_weights={'policy': 1.0, 'state_value': 1.0})
-        return model
+        # Use provided network or build a default one
+        self.actor_critic = network if network else build_a2c_network(env, lr=self.lr)
 
     def get_policy(self, state):
         return self.actor_critic(np.array([state]))[0][0].numpy()
