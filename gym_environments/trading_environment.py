@@ -143,7 +143,7 @@ class TradingEnvironment(gym.Env):
         assert len(self.trajectory) > 1, 'Cannot create trajectory with a single data point'
         self.position_in_trajectory = 0
 
-        state, *_ = self._get_next_transition()
+        state, *_ = self._get_next_transition(1)
         return state
 
     def step(self, action):
@@ -151,7 +151,7 @@ class TradingEnvironment(gym.Env):
 
     # Stub methods to make compatible with the gym interface
     def render(self):
+        #print(f'Current reward:{self.stock_owned * self.last_ticker_price + self.money}')
         pass
-
     def close(self):
         pass
