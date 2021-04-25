@@ -109,12 +109,15 @@ class TradingEnvironment(gym.Env):
 
         # TODO: calculate reward
         reward = 0
+        bs_amount = 100
+        #bs_amout = 1
         if action is not None:
             # recall Actions: { long, neutral, short }
             # long: change in stock held * (closing price - opening price) + transaction cost
             if action == 0:
-                self.stock_owned += 1
-                reward = (state.price - self.last_ticker_price) + self.transaction_cost
+                self.stock_owned += bs_amount
+                self.money -= state.price * bs_amount
+                reward = (state.price - self.last_ticker_price)*bs_amount + self.transaction_cost
             # neutral: num held * closing price + held capital - inital capital
             # QUESTION:
             # wouldn't this cost bot to helf indefinitely? guess not..
@@ -122,8 +125,9 @@ class TradingEnvironment(gym.Env):
                 reward = self.stock_owned * state.price + self.money - self.initial_money
             # short: change in stock held * (opening price - closing price) + transaction cost
             if action == 2:
-                self.stock_owned -= 1
-                reward = (self.last_ticker_price - state.price) + self.transaction_cost
+                self.stock_owned -= bs_amount
+                self.money += state.price * bs_amount
+                reward = (self.last_ticker_price - state.price)*bs_amount + self.transaction_cost
 
         self.last_ticker_price = state.price
 
@@ -152,6 +156,8 @@ class TradingEnvironment(gym.Env):
     # Stub methods to make compatible with the gym interface
     def render(self):
         #print(f'Current reward:{self.stock_owned * self.last_ticker_price + self.money}')
-        pass
+        #pass
+        print(f'current profit:{self.money + self.stock_owned * self.last_ticker_price + 1e-18 - self.initial_money};')
+        print(f'profit percentile:{(self.money + self.stock_owned * self.last_ticker_price + 1e-18 - self.initial_money)/self.initial_money}')
     def close(self):
         pass
