@@ -143,7 +143,7 @@ class TradingEnvironment(gym.Env):
         assert len(self.trajectory) > 1, 'Cannot create trajectory with a single data point'
         self.position_in_trajectory = 0
 
-        state, *_ = self._get_next_transition(1)
+        state, *_ = self._get_next_transition()
         return state
 
     def step(self, action):
