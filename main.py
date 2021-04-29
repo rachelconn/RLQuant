@@ -1,33 +1,72 @@
+from itertools import count
+import os
+import random
+import sys
 import gym
+import tensorflow as tf
 from gym_environments.trading_environment import TradingEnvironment
-from optimizers import A2C
+from optimizers import A2C, actor_loss, critic_loss
+from utils.generate_tickers import generate_training_test_environments
+from utils.test_model import test_model
 
-# Simple demo that environment works - add your algo here to train
-trading_env = TradingEnvironment('AAPL')
-trading_env._max_episode_steps = 2000
-s = trading_env.reset()
-print(f'Initial state: {s}')
-"""
-for x in range(10):
-    s, r, done, _ = trading_env.step(0)
-    print(f'New state: s:{s},r:{r}')
+tf.get_logger().setLevel('WARNING')
 
-for x in range(10):
-    s, r, done, _ = trading_env.step(1)
-    print(f'New state: s:{s},r:{r}')
-"""
+# Create training environments
+print('Creating training/test environments...')
+num_training = 100
+num_test = 20
+training_envs, test_envs = generate_training_test_environments('data/ticker_list/nyse-listed.csv', num_training, num_test, seed=0)
+print('Done setting up environments.')
 
-# Test A2C implementation on CartPole
-#cartpole_env = gym.make('CartPole-v0')
-#cartpole_env._max_episode_steps = 2000
-#a2c = A2C(cartpole_env)
-#a2c.train(2000, render_every=200)
+# Create model to use across training
+model_save_location = os.path.join('models', 'trading')
+most_recent_model_save_location = os.path.join('models', 'trading_most_recent')
+model_profit_save_location = os.path.join(model_save_location, 'best_profit.txt')
+if os.path.exists(model_save_location):
+    custom_objects = {
+        'loss': {
+            'policy': actor_loss(),
+            'state_value': critic_loss(),
+        }
+    }
+    model = tf.keras.models.load_model(model_save_location, custom_objects=custom_objects)
+    print(f'Using existing model from {model_save_location}')
+    try:
+        with open(model_profit_save_location, 'r') as f:
+            best_test_profit = float(f.readline())
+            print(f'Best test profit loaded: {best_test_profit}')
+    except Exception:
+        best_test_profit = -float('inf')
+else:
+    model = A2C(training_envs[0], lr=0.0003).get_model()
+    best_test_profit = -float('inf')
 
-a2c = A2C(trading_env)
-a2c.train(2000, render_every=200)
+# Create optimizers for each training environment
+optimizers = [A2C(env, network=model) for env in training_envs]
 
+# Train until stopped manually
+for i in count(1):
+    # Train on each environment a single time
+    for j, optimizer in enumerate(optimizers):
+        sys.stdout.write(f'\rTraining iteration {i} ({j}/{len(optimizers)})...')
+        sys.stdout.flush()
+        optimizer.train(1)
+    print()
 
-# Save model
-#model_save_location = 'models/cartpole'
-#model = a2c.get_model().save(model_save_location)
-#print(f'Saved model to {model_save_location}')
+    # Determine test performance
+    print('Done training, testing...')
+    test_profit = test_model(model, test_envs)
+
+    # Save model if it's better than any others reached
+    if test_profit > best_test_profit:
+        print('New best profit reached, saving model...')
+        model.save(model_save_location)
+        print(f'Saved model to {model_save_location}.')
+
+        best_test_profit = test_profit
+        with open(model_profit_save_location, 'w+') as f:
+            f.write(str(best_test_profit))
+
+    # Save most recent verstion of model if it wasn't an improvement in case you want to use it
+    else:
+        model.save(most_recent_model_save_location)
