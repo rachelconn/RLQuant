@@ -11,3 +11,6 @@ models/
 
 # pycache
 __pycache__
+
+# Ticker data files
+data/tickers
