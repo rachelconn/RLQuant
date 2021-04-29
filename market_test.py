@@ -63,8 +63,8 @@ class MarketTester:
 
             # Determine action to take and state value
             action_probs = model(np.array([s]))[0][0].numpy()
-            action = np.random.choice(self.nA, p=action_probs)
-            # action = np.argmax(action_probs)
+            # action = np.random.choice(self.nA, p=action_probs)
+            action = np.argmax(action_probs)
             confidence = action_probs[action]
 
             # Update environment and decision
