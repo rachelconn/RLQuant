@@ -6,6 +6,7 @@ import backtrader.indicators as btind
 import gym
 from gym import spaces
 import numpy as np
+import pandas as pd
 from utils.get_ticker_file import get_ticker_file
 
 TickerValue = namedtuple('TickerValue', ('price', 'MA', 'EMA', 'MACD', 'RSI'))
@@ -15,6 +16,11 @@ default_fromdate = datetime(2018, 1, 1)
 default_todate = datetime(2021, 4, 1)
 
 cached = {}
+
+def check_time_valid(dataname, fromdate):
+    """ Makes sure that ticker data at location dataname starts on or before fromdate """
+    data = pd.read_csv(dataname, usecols=['Date'], nrows=1)
+    assert datetime.strptime(data['Date'][0], '%Y-%m-%d') <= fromdate, f'Data in {dataname} starts after {fromdate}'
 
 def create_trajectory(ticker, fromdate=default_fromdate, todate=default_todate):
     global cached
@@ -45,6 +51,10 @@ def create_trajectory(ticker, fromdate=default_fromdate, todate=default_todate):
     # Create feed with ticker data and get values in the desired timeframe
     cerebro = bt.Cerebro()
     dataname = get_ticker_file(ticker)
+
+    # Throw an error if the start date is too early
+    check_time_valid(dataname, fromdate)
+
     ticker_data = bt.feeds.YahooFinanceCSVData(dataname=dataname, fromdate=fromdate, todate=todate)
     cerebro.adddata(ticker_data)
     cerebro.addstrategy(TrackValues)
@@ -173,3 +183,10 @@ class TradingEnvironment(gym.Env):
 
     def close(self):
         pass
+
+    def get_current_price(self):
+        """ Returns the current price of the environment's stock. """
+        return self.last_ticker_price
+
+    def get_ticker(self):
+        return self.ticker
