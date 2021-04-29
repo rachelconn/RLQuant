@@ -11,6 +11,9 @@ from utils.test_model import test_model
 
 tf.get_logger().setLevel('WARNING')
 
+# Set model name
+model_name = 'trading_dropout'
+
 # Create training environments
 print('Creating training/test environments...')
 num_training = 100
@@ -19,8 +22,8 @@ training_envs, test_envs = generate_training_test_environments('data/ticker_list
 print('Done setting up environments.')
 
 # Create model to use across training
-model_save_location = os.path.join('models', 'trading')
-most_recent_model_save_location = os.path.join('models', 'trading_most_recent')
+model_save_location = os.path.join('models', model_name)
+most_recent_model_save_location = os.path.join('models', f'{model_name}_most_recent')
 model_profit_save_location = os.path.join(model_save_location, 'best_profit.txt')
 if os.path.exists(model_save_location):
     custom_objects = {
@@ -38,6 +41,7 @@ if os.path.exists(model_save_location):
     except Exception:
         best_test_profit = -float('inf')
 else:
+    print(f'Creating new model for {model_name}')
     model = A2C(training_envs[0], lr=0.0003).get_model()
     best_test_profit = -float('inf')
 
