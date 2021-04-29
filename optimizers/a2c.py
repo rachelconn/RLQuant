@@ -56,7 +56,7 @@ def critic_loss():
 
     return loss
 
-def build_a2c_network(env, *_, lr, layer_nodes=[64, 64]):
+def build_a2c_network(env, *_, lr, layer_nodes=[128, 128, 128]):
     """ Builds a basic A2C network fitting the environment's state/action spaces.
         We probably won't want to use this going forward since LSTM networks are
         generally more successful
@@ -128,9 +128,8 @@ class A2C():
             if render:
                 self.env.render()
 
-        self.env.close()
         self.episodes_run += 1
-        print(f'Reward from episode {self.episodes_run}: {total_r}')
+        self.env.close()
 
         return episode
 
