@@ -24,6 +24,7 @@ def actor_loss():
         ################################
         #   YOUR IMPLEMENTATION HERE   #
         ################################
+        predicted_output = K.clip(predicted_output, 1e-8, 1-1e-8)
         log_probs = K.log(predicted_output)
         losses = -K.sum(advantage * log_probs, -1)
         # losses = K.print_tensor(losses, 'actor loss:')
