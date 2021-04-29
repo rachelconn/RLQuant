@@ -1,8 +1,8 @@
 import numpy as np
 from tensorflow.keras import backend as K
-from tensorflow.keras.layers import Dense, Softmax, Input
+from tensorflow.keras.layers import Dense, Dropout, Softmax, Input
 from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.models import Model
+from tensorflow.keras.models import Model, load_model
 
 def actor_loss():
     def loss(advantage, predicted_output):
@@ -57,7 +57,17 @@ def critic_loss():
 
     return loss
 
-def build_a2c_network(env, *_, lr, layer_nodes=[128, 128, 128]):
+def load_a2c_model(location):
+    """ Loads an A2C network from folder specified by location """
+    custom_objects = {
+        'loss': {
+            'policy': actor_loss(),
+            'state_value': critic_loss(),
+        }
+    }
+    return load_model(location, custom_objects=custom_objects)
+
+def build_a2c_network(env, *_, lr, layer_nodes=[128, 128, 128], dropout_p=None):
     """ Builds a basic A2C network fitting the environment's state/action spaces.
         We probably won't want to use this going forward since LSTM networks are
         generally more successful
@@ -69,6 +79,8 @@ def build_a2c_network(env, *_, lr, layer_nodes=[128, 128, 128]):
     current_layer = state
     for nodes_for_layer in layer_nodes[:-1]:
         current_layer = Dense(nodes_for_layer, activation='relu')(current_layer)
+        if dropout_p:
+            current_layer = Dropout(dropout_p)(current_layer)
 
     # Actor and critic heads have a seperated final fully connected layer
     current_actor_layer = Dense(layer_nodes[-1], activation='tanh')(current_layer)
@@ -92,7 +104,7 @@ class A2C():
             - Use n-step bootstrapping instead of 1-step
             - Dynamic learning rate
     """
-    def __init__(self, env, *_, lr=0.001, gamma=0.99, network=None):
+    def __init__(self, env, *_, lr=0.001, gamma=0.99, dropout_p=None, network=None):
         # Environment data
         self.env = env
         self.nA = self.env.action_space.n
@@ -103,7 +115,7 @@ class A2C():
         self.gamma = gamma
 
         # Use provided network or build a default one
-        self.actor_critic = network if network else build_a2c_network(env, lr=self.lr)
+        self.actor_critic = network if network else build_a2c_network(env, lr=self.lr, dropout_p=dropout_p)
 
     def get_policy(self, state):
         return self.actor_critic(np.array([state]))[0][0].numpy()

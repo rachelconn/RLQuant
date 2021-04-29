@@ -1,3 +1,3 @@
-from .a2c import A2C, actor_loss, critic_loss
+from .a2c import A2C, load_a2c_model
 
-__all__ = ['A2C', 'actor_loss', 'critic_loss']
+__all__ = ['A2C', 'load_a2c_model']

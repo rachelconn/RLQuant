@@ -5,14 +5,14 @@ import sys
 import gym
 import tensorflow as tf
 from gym_environments.trading_environment import TradingEnvironment
-from optimizers import A2C, actor_loss, critic_loss
+from optimizers import A2C, load_a2c_model
 from utils.generate_tickers import generate_training_test_environments
 from utils.test_model import test_model
 
 tf.get_logger().setLevel('WARNING')
 
 # Set model name
-model_name = 'trading_dropout'
+model_name = 'trading'
 
 # Create training environments
 print('Creating training/test environments...')
@@ -26,13 +26,7 @@ model_save_location = os.path.join('models', model_name)
 most_recent_model_save_location = os.path.join('models', f'{model_name}_most_recent')
 model_profit_save_location = os.path.join(model_save_location, 'best_profit.txt')
 if os.path.exists(model_save_location):
-    custom_objects = {
-        'loss': {
-            'policy': actor_loss(),
-            'state_value': critic_loss(),
-        }
-    }
-    model = tf.keras.models.load_model(model_save_location, custom_objects=custom_objects)
+    model = load_a2c_model(model_save_location)
     print(f'Using existing model from {model_save_location}')
     try:
         with open(model_profit_save_location, 'r') as f:
