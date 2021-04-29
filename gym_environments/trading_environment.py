@@ -6,6 +6,7 @@ import backtrader.indicators as btind
 import gym
 from gym import spaces
 import numpy as np
+from utils.get_ticker_file import get_ticker_file
 
 TickerValue = namedtuple('TickerValue', ('price', 'MA', 'EMA', 'MACD', 'RSI'))
 TradingState = namedtuple('TradingState', ('money', 'stock_owned') + TickerValue._fields)
@@ -13,7 +14,12 @@ TradingState = namedtuple('TradingState', ('money', 'stock_owned') + TickerValue
 default_fromdate = datetime(2018, 1, 1)
 default_todate = datetime(2021, 4, 1)
 
+cached = {}
+
 def create_trajectory(ticker, fromdate=default_fromdate, todate=default_todate):
+    global cached
+    if cached.get(ticker) is not None:
+        return cached[ticker]
     """ Returns a TickerValue at the end of each day between start_date and end_date """
     ticker_values = []
 
@@ -23,7 +29,7 @@ def create_trajectory(ticker, fromdate=default_fromdate, todate=default_todate):
             self.MA = btind.SMA(self.data)
             self.EMA = btind.EMA(self.data)
             self.MACD = btind.EMA(self.data, period=12) - btind.EMA(self.data, period=26)
-            self.RSI = btind.RSI_EMA()
+            self.RSI = btind.RSI_EMA(safediv=True)
 
         def next(self):
             # Data available, put indicators into ticker values
@@ -38,11 +44,13 @@ def create_trajectory(ticker, fromdate=default_fromdate, todate=default_todate):
 
     # Create feed with ticker data and get values in the desired timeframe
     cerebro = bt.Cerebro()
-    ticker_data = bt.feeds.YahooFinanceData(dataname=ticker, fromdate=fromdate, todate=todate)
+    dataname = get_ticker_file(ticker)
+    ticker_data = bt.feeds.YahooFinanceCSVData(dataname=dataname, fromdate=fromdate, todate=todate)
     cerebro.adddata(ticker_data)
     cerebro.addstrategy(TrackValues)
     cerebro.run()
 
+    cached[ticker] = ticker_values
     return ticker_values
 
 class TradingEnvironment(gym.Env):
@@ -99,38 +107,39 @@ class TradingEnvironment(gym.Env):
         done = self.position_in_trajectory == len(self.trajectory) - 1
         self.position_in_trajectory += 1
 
-        state = TradingState(money=self.money, stock_owned=self.stock_owned, **ticker_value._asdict())
-
-        # TODO: handle action
-        # self.action_space = spaces.Discrete(3)
-
-        # NOTE: 
-        # This works but it really don't consider the long term holding
-
-        # TODO: calculate reward
-        reward = 0
-        bs_amount = 100
-        #bs_amout = 1
+        # Handle action
+        action_invalid = False
         if action is not None:
             # recall Actions: { long, neutral, short }
-            # long: change in stock held * (closing price - opening price) + transaction cost
+            # long
             if action == 0:
-                self.stock_owned += bs_amount
-                self.money -= state.price * bs_amount
-                reward = (state.price - self.last_ticker_price)*bs_amount + self.transaction_cost
-            # neutral: num held * closing price + held capital - inital capital
-            # QUESTION:
-            # wouldn't this cost bot to helf indefinitely? guess not..
-            if action == 1:
-                reward = self.stock_owned * state.price + self.money - self.initial_money
-            # short: change in stock held * (opening price - closing price) + transaction cost
-            if action == 2:
-                self.stock_owned -= bs_amount
-                self.money += state.price * bs_amount
-                reward = (self.last_ticker_price - state.price)*bs_amount + self.transaction_cost
+                if self.money >= ticker_value.price:
+                    self.money -= ticker_value.price
+                    self.stock_owned += 1
+                else:
+                    action_invalid = True
+            # neutral
+            elif action == 1:
+                pass
+            # short
+            elif action == 2:
+                if self.stock_owned > 0:
+                    self.money += ticker_value.price
+                    self.stock_owned -= 1
+                else:
+                    action_invalid = True
 
-        self.last_ticker_price = state.price
+        unadjusted_reward = ticker_value.price * self.stock_owned + self.money
+        reward = unadjusted_reward - self.last_reward
+        self.last_reward = unadjusted_reward
+        # Give large negative reward if action is invalid
+        if action_invalid:
+            reward = -100 * self.initial_money
 
+        self.last_ticker_price = ticker_value.price
+
+        # print(f'Asset value: {unadjusted_reward}, money: {self.money}, stock owned: {self.stock_owned}, reward: {reward} from taking action {action}')
+        state = TradingState(money=self.money, stock_owned=self.stock_owned, **ticker_value._asdict())
 
         return state, reward, done, {}
 
@@ -140,6 +149,7 @@ class TradingEnvironment(gym.Env):
         """
         # State independent from stock
         self.money = self.initial_money
+        self.last_reward = self.initial_money
         self.stock_owned = 0
 
         # State related to stock
@@ -154,10 +164,12 @@ class TradingEnvironment(gym.Env):
         return self._get_next_transition(action)
 
     # Stub methods to make compatible with the gym interface
-    def render(self):
-        #print(f'Current reward:{self.stock_owned * self.last_ticker_price + self.money}')
-        #pass
-        print(f'current profit:{self.money + self.stock_owned * self.last_ticker_price + 1e-18 - self.initial_money};')
-        print(f'profit percentile:{(self.money + self.stock_owned * self.last_ticker_price + 1e-18 - self.initial_money)/self.initial_money}')
+    def render(self, to_console=True):
+        profit = self.stock_owned * self.last_ticker_price + self.money - self.initial_money
+        profit_percentage = profit / self.initial_money * 100
+        if to_console:
+            print(f'Profit from {self.ticker}: {profit} ({profit_percentage}%)')
+        return profit_percentage
+
     def close(self):
         pass
