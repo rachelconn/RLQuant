@@ -35,10 +35,14 @@ def test_lstm_model(model, test_envs):
 
         s = env.reset()
         done = False
+        prints_left = 5
         while not done:
             steps.append(s)
             steps.popleft()
 
+            if prints_left:
+                print(f'{env.get_ticker()}: {model(np.array([steps]))[0].numpy()}')
+                prints_left -= 1
             a = np.random.choice(nA, p=model(np.array([steps]))[0].numpy())
             s, _, done, _ = env.step(a)
 

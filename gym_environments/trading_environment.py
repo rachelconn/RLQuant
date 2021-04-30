@@ -119,29 +119,33 @@ class TradingEnvironment(gym.Env):
 
         # Handle action
         action_invalid = False
-        if action is not None:
+        if action is None:
+            reward = 0
+        else:
             # recall Actions: { long, neutral, short }
             # long
             if action == 0:
                 if self.money >= ticker_value.price:
                     self.money -= ticker_value.price
                     self.stock_owned += 1
+                    reward = ticker_value.price - self.last_ticker_price - self.transaction_cost
                 else:
                     action_invalid = True
             # neutral
             elif action == 1:
-                pass
+                reward = self.stock_owned * ticker_value.price + (self.money - self.initial_money)
             # short
             elif action == 2:
                 if self.stock_owned > 0:
                     self.money += ticker_value.price
                     self.stock_owned -= 1
+                    reward = ticker_value.price - self.last_ticker_price - self.transaction_cost
                 else:
                     action_invalid = True
 
-        unadjusted_reward = ticker_value.price * self.stock_owned + self.money
-        reward = unadjusted_reward - self.last_reward
-        self.last_reward = unadjusted_reward
+        # unadjusted_reward = ticker_value.price * self.stock_owned + self.money
+        # reward = unadjusted_reward - self.last_reward
+        # self.last_reward = unadjusted_reward
         # Give large negative reward if action is invalid
         if action_invalid:
             reward = -100 * self.initial_money

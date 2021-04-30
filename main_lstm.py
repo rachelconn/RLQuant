@@ -12,7 +12,9 @@ from utils.test_model import test_lstm_model
 tf.get_logger().setLevel('WARNING')
 
 # Set model name
-model_name = 'trading_lstm'
+model_name = 'trading_lstm_paper_reward_low_gamma_low_lr'
+lr = 0.0003
+gamma = 0.5
 
 # Create training environments
 print('Creating training/test environments...')
@@ -37,14 +39,15 @@ if os.path.exists(model_save_location):
         best_test_profit = -float('inf')
 else:
     print(f'Creating new model for {model_name}')
-    actor, critic = A2C_LSTM(training_envs[0], lr=0.0003).get_models()
-    best_test_profit = -float('inf')
+    actor, critic = A2C_LSTM(training_envs[0], lr=lr, gamma=gamma).get_models()
+best_test_profit = -float('inf')
 
-# Create optimizers for each training environment
-optimizers = [A2C_LSTM(env, actor=actor, critic=critic) for env in training_envs]
 
 # Train until stopped manually
 for i in count(1):
+    # Create optimizers for each training environment
+    optimizers = [A2C_LSTM(env, actor=actor, critic=critic, lr=lr, gamma=gamma) for env in training_envs]
+
     # Train on each environment a single time
     for j, optimizer in enumerate(optimizers):
         sys.stdout.write(f'\rTraining iteration {i} ({j}/{len(optimizers)})...')
@@ -65,3 +68,5 @@ for i in count(1):
         best_test_profit = test_profit
         with open(model_profit_save_location, 'w+') as f:
             f.write(str(best_test_profit))
+
+    training_envs, _ = generate_training_test_environments('data/ticker_list/nyse-listed.csv', num_training, 0)
