@@ -1,7 +1,7 @@
 import numpy as np
 from tensorflow.keras import Sequential
 from tensorflow.keras import backend as K
-from tensorflow.keras.layers import Dense, Softmax, Input, LSTM, SimpleRNN, Embedding, Concatenate
+from tensorflow.keras.layers import Dense, Softmax, Input, LSTM, Dropout
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.models import Model, load_model
 
@@ -84,7 +84,7 @@ def build_a2c_networks(env, *_, lr, layer_nodes=[64, 64], time_steps):
     actor.compile(loss=actor_loss(), optimizer=Adam(lr=lr), loss_weights=1.0)
 
     critic = Sequential()
-    critic.add(LSTM(layer_nodes[0], input_shape=(time_steps, state_size)))
+    critic.add(LSTM(layer_nodes[0],return_sequences = True, input_shape=(time_steps, state_size)))
     critic.add(Dropout(0.2))
     critic.add(LSTM(layer_nodes[0],return_sequences = True))
     critic.add(Dropout(0.2))
