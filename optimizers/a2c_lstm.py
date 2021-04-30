@@ -3,7 +3,7 @@ from tensorflow.keras import Sequential
 from tensorflow.keras import backend as K
 from tensorflow.keras.layers import Dense, Softmax, Input, LSTM, SimpleRNN, Embedding, Concatenate
 from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.models import Model
+from tensorflow.keras.models import Model, load_model
 
 def actor_loss():
     def loss(advantage, predicted_output):
@@ -58,32 +58,34 @@ def critic_loss():
 
     return loss
 
-def build_a2c_network(env, *_, lr, layer_nodes=[64, 64]):
-    """ Builds a basic A2C network fitting the environment's state/action spaces.
-        We probably won't want to use this going forward since LSTM networks are
-        generally more successful
+def load_a2c_lstm_model(actor_location, critic_location):
+    """ Loads A2C LSTM networks from folders specified """
+    actor = load_model(actor_location, custom_objects={'loss': actor_loss()})
+    critic = load_model(actor_location, custom_objects={'loss': critic_loss()})
+    return actor, critic
+
+def build_a2c_networks(env, *_, lr, layer_nodes=[64, 64], time_steps):
+    """ Builds an LSTM A2C network fitting the environment's state/action spaces.
     """
-    state_size = (env.observation_space.shape[0],)
+    state_size = env.observation_space.shape[0]
     nA = env.action_space.n
 
     actor = Sequential()
-    actor.add(Embedding(input_dim=state_size[0], output_dim=layer_nodes[-1]))
-    actor.add(LSTM(layer_nodes[-1]))
-    actor.add(Dense(layer_nodes[-1], activation='tanh'))
+    actor.add(LSTM(layer_nodes[0], input_shape=(time_steps, state_size)))
+    for num_nodes in layer_nodes[1:]:
+        actor.add(Dense(num_nodes, activation='tanh'))
     actor.add(Dense(nA, activation='tanh'))
     actor.add(Softmax())
     actor.compile(loss=actor_loss(), optimizer=Adam(lr=lr), loss_weights=1.0)
 
     critic = Sequential()
-    critic.add(Embedding(input_dim=state_size[0], output_dim=layer_nodes[-1]))
-    critic.add(LSTM(layer_nodes[-1]))
-    critic.add(Dense(nA, activation='tanh'))
+    critic.add(LSTM(layer_nodes[0], input_shape=(time_steps, state_size)))
+    for num_nodes in layer_nodes[1:]:
+        critic.add(Dense(num_nodes, activation='tanh'))
     critic.add(Dense(1, activation='linear', name='state_value'))
     critic.compile(loss=critic_loss(), optimizer=Adam(lr=lr), loss_weights=1.0)
 
-    #not tested yet!!!
-
-    return actor,critic
+    return actor, critic
 
 class A2C_LSTM():
     """ A2C optimizer.
@@ -92,7 +94,7 @@ class A2C_LSTM():
             - Use n-step bootstrapping instead of 1-step
             - Dynamic learning rate
     """
-    def __init__(self, env, *_, lr=0.001, gamma=0.99, network=None):
+    def __init__(self, env, *_, lr=0.001, gamma=0.99, time_steps=4, actor=None, critic=None):
         # Environment data
         self.env = env
         self.nA = self.env.action_space.n
@@ -101,18 +103,18 @@ class A2C_LSTM():
         # Hyperparameters
         self.lr = lr
         self.gamma = gamma
+        self.time_steps = time_steps
 
         # Use provided network or build a default one
-        #self.actor_critic = network if network else build_a2c_network(env, lr=self.lr)
-
-        self.actor, self.critic = build_a2c_network(env, lr=self.lr)
+        if actor is None or critic is None:
+            self.actor, self.critic = build_a2c_networks(env, lr=self.lr, time_steps=time_steps)
+        else:
+            self.actor, self.critic = actor, critic
 
     def get_policy(self, state):
-        print("\n\n\n\n")
-        print("state: ")
-        print(state)
-        print("\n\n\n\n")
-        return self.actor(np.array([state]))[0].numpy()
+        test = np.array([state])
+        ret = self.actor(np.array([state]))
+        return ret[0].numpy()
 
     def choose_action(self, state):
         return np.random.choice(self.nA, p=self.get_policy(state))
@@ -125,9 +127,18 @@ class A2C_LSTM():
         done = False
         episode = []
         while not done:
-            a = self.choose_action(s)
+            # Create time steps for each state transition
+            steps = [s]
+            for i in range(1, self.time_steps):
+                if len(episode) >= i:
+                    steps.append(episode[-i][0][-1])
+                else:
+                    steps.append((0,) * len(s))
+            steps.reverse()
+
+            a = self.choose_action(steps)
             s_prime, r, done, _ = self.env.step(a)
-            episode.append((s, a, r))
+            episode.append((steps, a, r))
 
             s = s_prime
             total_r += r
@@ -137,7 +148,6 @@ class A2C_LSTM():
 
         self.env.close()
         self.episodes_run += 1
-        print(f'Reward from episode {self.episodes_run}: {total_r}')
 
         return episode
 
@@ -175,6 +185,6 @@ class A2C_LSTM():
             render = render_every and i % render_every == 0
             self.train_on_episode(render=render)
 
-    def get_model(self):
+    def get_models(self):
         """ Returns the actor-critic network for serialization or other external use """
-        return self.actor_critic
+        return self.actor, self.critic
