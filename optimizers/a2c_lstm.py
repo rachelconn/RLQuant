@@ -71,7 +71,12 @@ def build_a2c_networks(env, *_, lr, layer_nodes=[64, 64], time_steps):
     nA = env.action_space.n
 
     actor = Sequential()
-    actor.add(LSTM(layer_nodes[0], input_shape=(time_steps, state_size)))
+    actor.add(LSTM(layer_nodes[0],return_sequences = True, input_shape=(time_steps, state_size)))
+    actor.add(Dropout(0.2))
+    actor.add(LSTM(layer_nodes[0],return_sequences = True))
+    actor.add(Dropout(0.2))
+    actor.add(LSTM(layer_nodes[0]))
+    actor.add(Dropout(0.2))
     for num_nodes in layer_nodes[1:]:
         actor.add(Dense(num_nodes, activation='tanh'))
     actor.add(Dense(nA, activation='tanh'))
@@ -80,6 +85,11 @@ def build_a2c_networks(env, *_, lr, layer_nodes=[64, 64], time_steps):
 
     critic = Sequential()
     critic.add(LSTM(layer_nodes[0], input_shape=(time_steps, state_size)))
+    critic.add(Dropout(0.2))
+    critic.add(LSTM(layer_nodes[0],return_sequences = True))
+    critic.add(Dropout(0.2))
+    critic.add(LSTM(layer_nodes[0]))
+    critic.add(Dropout(0.2))
     for num_nodes in layer_nodes[1:]:
         critic.add(Dense(num_nodes, activation='tanh'))
     critic.add(Dense(1, activation='linear', name='state_value'))
