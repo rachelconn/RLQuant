@@ -25,13 +25,20 @@ print('Done setting up environments.')
 model_save_location = os.path.join('models', model_name)
 actor_save_location = os.path.join(model_save_location, 'actor')
 critic_save_location = os.path.join(model_save_location, 'critic')
+model_profit_save_location = os.path.join(model_save_location, 'best_profit.txt')
 if os.path.exists(model_save_location):
     print(f'Loaded existing model from {model_save_location}')
     actor, critic = load_a2c_lstm_model(actor_save_location, critic_save_location)
+    try:
+        with open(model_profit_save_location, 'r') as f:
+            best_test_profit = float(f.readline())
+            print(f'Best test profit loaded: {best_test_profit}')
+    except Exception:
+        best_test_profit = -float('inf')
 else:
     print(f'Creating new model for {model_name}')
     actor, critic = A2C_LSTM(training_envs[0], lr=0.0003).get_models()
-best_test_profit = -float('inf')
+    best_test_profit = -float('inf')
 
 # Create optimizers for each training environment
 optimizers = [A2C_LSTM(env, actor=actor, critic=critic) for env in training_envs]
@@ -55,3 +62,6 @@ for i in count(1):
         actor.save(actor_save_location)
         critic.save(critic_save_location)
         print(f'Saved model to {model_save_location}.')
+        best_test_profit = test_profit
+        with open(model_profit_save_location, 'w+') as f:
+            f.write(str(best_test_profit))
