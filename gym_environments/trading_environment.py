@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 from utils.get_ticker_file import get_ticker_file
 
-TickerValue = namedtuple('TickerValue', ('price', 'MA', 'EMA', 'MACD', 'RSI'))
+TickerValue = namedtuple('TickerValue', ('price', 'BBPct', 'EMA', 'PPO', 'RSI'))
 TradingState = namedtuple('TradingState', ('money', 'stock_owned') + TickerValue._fields)
 
 default_fromdate = datetime(2018, 1, 1)
@@ -32,18 +32,20 @@ def create_trajectory(ticker, fromdate=default_fromdate, todate=default_todate):
     # Use backtrader to create ticker values for each day in range
     class TrackValues(bt.Strategy):
         def __init__(self):
-            self.MA = btind.SMA(self.data)
+            # self.MA = btind.SMA(self.data)
+            self.BBPct = btind.BollingerBandsPct(self.data)
             self.EMA = btind.EMA(self.data)
-            self.MACD = btind.EMA(self.data, period=12) - btind.EMA(self.data, period=26)
+            self.PPO = btind.PPO(self.data)
+            # self.MACD = btind.EMA(self.data, period=12) - btind.EMA(self.data, period=26)
             self.RSI = btind.RSI_EMA(safediv=True)
 
         def next(self):
             # Data available, put indicators into ticker values
             ticker_value = TickerValue(
                 price=self.data.close[0],
-                MA=self.MA[0],
+                BBPct=self.BBPct[0],
                 EMA=self.EMA[0],
-                MACD=self.MACD[0],
+                PPO=self.PPO[0],
                 RSI=self.RSI[0],
             )
             ticker_values.append(ticker_value)
@@ -75,9 +77,9 @@ class TradingEnvironment(gym.Env):
             0,       # Money on hand
             0,       # Stock owned
             0,       # Ticker price
-            0,       # MA (SimpleMovingAverage)
+            np.NINF,       # BBPct (BollingerBandsPct)
             0,       # EMA (ExponentialMovingAverage)
-            np.NINF, # MACD (MovingAverageConvergenceDivergence)
+            np.NINF, # PPO (PercentagePriceOscillator)
             0,       # RSI (RelativeStrengthIndex)
         ], dtype=np.float32)
         high = np.array([
