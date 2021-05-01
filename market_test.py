@@ -92,16 +92,16 @@ class MarketTester:
                     action_probs = prediction.numpy()
                 else:
                     action_probs = prediction[0].numpy()
-                action = np.random.choice(self.nA, p=action_probs)
-                # action = np.argmax(action_probs)
+                # action = np.random.choice(self.nA, p=action_probs)
+                action = np.argmax(action_probs)
                 confidence = action_probs[action]
             else:
-                # prediction = prediction.numpy()
-                # action = np.argmax(prediction)
-                # # Rank decisions by advantage over neutral position (normalized to account differences in price)
-                # confidence = (prediction[action] - prediction[1]) / self.env_states[ticker][-1].price
-                action = np.random.choice(self.nA - 1)
-                confidence = 1
+                prediction = prediction.numpy()
+                action = np.argmax(prediction)
+                # Rank decisions by advantage over neutral position (normalized to account differences in price)
+                confidence = (prediction[action] - prediction[1]) / self.env_states[ticker][-1].price
+                # action = np.random.choice(self.nA - 1)
+                # confidence = 1
 
             # Update environment and decision
             s_prime, _, done, _ = env.step(action)
