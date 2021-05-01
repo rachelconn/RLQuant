@@ -23,7 +23,8 @@ def test_model(model, test_envs):
 
 def test_lstm_model(model, test_envs):
     """ Tests the actor of an LSTM network """
-    num_timesteps = model.input_shape[-1]
+    state_size = model.input_shape[-1]
+    num_timesteps = model.input_shape[-2]
     nA = test_envs[0].action_space.n
     profit_percentages = []
 
@@ -31,7 +32,7 @@ def test_lstm_model(model, test_envs):
     for env in test_envs:
         steps = deque()
         for _ in range(num_timesteps):
-            steps.append((0,) * 7)
+            steps.append((0,) * state_size)
 
         s = env.reset()
         done = False
@@ -43,7 +44,7 @@ def test_lstm_model(model, test_envs):
             if prints_left:
                 print(f'{env.get_ticker()}: {model(np.array([steps]))[0].numpy()}')
                 prints_left -= 1
-            a = np.random.choice(nA, p=model(np.array([steps]))[0].numpy())
+            a = np.argmax(model(np.array([steps]))[0].numpy())
             s, _, done, _ = env.step(a)
 
         # Done, get final profit percentage
