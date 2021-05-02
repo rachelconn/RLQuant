@@ -5,21 +5,26 @@ import os
 from typing import List
 import numpy as np
 
-from gym_environments.trading_environment import TradingState
+from gym_environments.trading_environment import TradingState, TradingEnvironment
 from optimizers import load_a2c_model, load_a2c_lstm_model, load_dqn_model
 from utils.generate_tickers import generate_training_test_environments
+from utils.plot_stock import plot_stock
 
 """ Tests an already trained model over a wide range of stocks """
 
 
-model_name = 'lstm_dqn_recent'
+# Configurable parameters
+model_name = 'lstm_dqn_high_t_no_money_09_gamma_percent_fee_10'
+ticker = 'AMC'
 model_is_lstm = True
 model_is_dqn = True
-num_stocks = 10
-initial_money = 10_000
+num_stocks = 300
+initial_money = 24_719 # Same as DOW on January 1, 2018 to use as a frame of reference for relative performance
 seed = 123123123
-ticker_list_location = 'data/ticker_list/nyse-listed.csv'
 
+# Constants
+ticker_list_location = 'data/ticker_list/nyse-listed.csv'
+dow_stocks = ['MMM', 'AXP', 'AMGN', 'AAPL', 'BA', 'CAT', 'CVX', 'CSCO', 'KO', 'GS', 'HD', 'HON', 'IBM', 'INTC', 'JNJ', 'JPM', 'MCD', 'MRK', 'MSFT', 'NKE', 'PG', 'CRM', 'TRV', 'UNH', 'VZ', 'V', 'WBA', 'WMT', 'DIS']
 model_save_location = os.path.join('models', model_name)
 
 # Load model
@@ -41,9 +46,13 @@ except Exception as e:
 Decision = namedtuple('Decision', ('ticker', 'action', 'confidence'))
 
 class MarketTester:
-    def __init__(self, *_, num_stocks, initial_money, seed, model_is_lstm, model_is_dqn):
+    def __init__(self, *_, num_stocks, initial_money, seed, model_is_lstm, model_is_dqn, use_dow_stocks=False):
         # Create environments
-        self.stock_envs, _ = generate_training_test_environments(ticker_list_location, num_stocks, 0, seed=seed)
+        if use_dow_stocks:
+            self.stock_envs = [TradingEnvironment(ticker) for ticker in dow_stocks]
+        else:
+            self.stock_envs, _ = generate_training_test_environments(ticker_list_location, num_stocks, 0, seed=seed)
+
         self.nA = self.stock_envs[0].action_space.n
         self.model_is_lstm = model_is_lstm
         self.model_is_dqn = model_is_dqn
@@ -115,7 +124,6 @@ class MarketTester:
                 # Manually adjust money and stock owned so that decisions are made off of actual state rather than internal env state
                 s_prime = TradingState(**{
                     **s_prime._asdict(),
-                    'money': self.money,
                     'stock_owned': self.stock_owned[ticker],
                 })
                 if self.model_is_lstm:
@@ -145,12 +153,16 @@ class MarketTester:
 
         # Sell all shorts
         for ticker in shorts:
+            if self.stock_owned[ticker] == 0:
+                continue
             # print(f'Selling {self.stock_owned[ticker]}x {ticker}')
             if self.model_is_lstm:
                 stock_price = self.env_states[ticker][-1].price
             else:
                 stock_price = self.env_states[ticker].price
-            self.money += self.stock_owned[ticker] * stock_price
+            stock_money = self.stock_owned[ticker] * stock_price
+            self.money += stock_money
+            print(f'Sold {self.stock_owned[ticker]}x {ticker} for ${stock_money}')
             self.stock_owned[ticker] = 0
 
         # Buy most promising longs (one at a time to diversify portfolio)
@@ -167,6 +179,7 @@ class MarketTester:
 
             self.money -= stock_price
             self.stock_owned[ticker] += 1
+            print(f'Bought 1x {ticker} for ${stock_price}')
 
     def run(self):
         current_date = datetime.datetime(2018, 1, 1)
@@ -190,3 +203,6 @@ class MarketTester:
 
 
 MarketTester(num_stocks=num_stocks, initial_money=initial_money, seed=seed, model_is_lstm=model_is_lstm, model_is_dqn=model_is_dqn).run()
+
+# Use to analyze performance on a single stock
+# plot_stock(model, ticker)
