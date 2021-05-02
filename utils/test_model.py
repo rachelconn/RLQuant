@@ -30,6 +30,8 @@ def test_lstm_model(model, test_envs):
 
     # Run single iteration on each test env
     for env in test_envs:
+        sells = 0
+
         steps = deque()
         for _ in range(num_timesteps):
             steps.append((0,) * state_size)
@@ -45,10 +47,13 @@ def test_lstm_model(model, test_envs):
                 print(f'{env.get_ticker()}: {model(np.array([steps]))[0].numpy()}')
                 prints_left -= 1
             a = np.argmax(model(np.array([steps]))[0].numpy())
+            if a == 2:
+                sells += 1
             s, _, done, _ = env.step(a)
 
         # Done, get final profit percentage
         profit_percentages.append(env.render())
+        print(f'{env.get_ticker()} sells: {sells}')
 
     # Calculate average profit percentage
     mean_profit_percentage = mean(profit_percentages)
