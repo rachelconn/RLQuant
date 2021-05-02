@@ -1,3 +1,4 @@
+import random
 from collections import deque
 import numpy as np
 from tensorflow.keras import Sequential
@@ -93,7 +94,9 @@ class DQN:
             steps.append(s_prime)
             s_prime_steps = list(steps)
 
-            self.replay_buffer.add_sample((s_steps, a, r, s_prime_steps, done))
+            # Use selective replay buffer - experience from buying/selling is more important than taking neutral position
+            if a != 1 or random.randrange(10) == 0:
+                self.replay_buffer.add_sample((s_steps, a, r, s_prime_steps, done))
 
             s = s_prime
 
