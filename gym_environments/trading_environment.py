@@ -10,7 +10,7 @@ import pandas as pd
 from utils.get_ticker_file import get_ticker_file
 
 TickerValue = namedtuple('TickerValue', ('price', 'BBPct', 'EMA', 'PPO', 'RSI'))
-TradingState = namedtuple('TradingState', ('money', 'stock_owned') + TickerValue._fields)
+TradingState = namedtuple('TradingState', ('stock_owned',) + TickerValue._fields)
 
 default_fromdate = datetime(2018, 1, 1)
 default_todate = datetime(2021, 4, 1)
@@ -67,15 +67,14 @@ def create_trajectory(ticker, fromdate=default_fromdate, todate=default_todate):
 
 class TradingEnvironment(gym.Env):
     """ gym environment that trades a single stock """
-    def __init__(self, ticker, transaction_cost = 0, initial_money=10_000):
+    def __init__(self, ticker, transaction_cost=0.01, initial_money=10_000):
         self.ticker = ticker
         self.initial_money = initial_money
         self.transaction_cost = transaction_cost
 
         # State space: values defined below
         low = np.array([
-            0,       # Money on hand
-            0,       # Stock owned
+            np.NINF,
             0,       # Ticker price
             np.NINF,       # BBPct (BollingerBandsPct)
             0,       # EMA (ExponentialMovingAverage)
@@ -83,7 +82,6 @@ class TradingEnvironment(gym.Env):
             0,       # RSI (RelativeStrengthIndex)
         ], dtype=np.float32)
         high = np.array([
-            np.inf,
             np.inf,
             np.inf,
             np.inf,
@@ -127,35 +125,34 @@ class TradingEnvironment(gym.Env):
             # recall Actions: { long, neutral, short }
             # long
             if action == 0:
-                if self.money >= ticker_value.price:
-                    self.money -= ticker_value.price
-                    self.stock_owned += 1
-                    reward = ticker_value.price - self.last_ticker_price - self.transaction_cost
-                else:
-                    action_invalid = True
+                self.stock_owned += 1
+                self.money -= self.last_ticker_price
+                reward = self.stock_owned * (ticker_value.price - self.last_ticker_price) - self.transaction_cost * self.last_ticker_price
             # neutral
             elif action == 1:
-                reward = self.stock_owned * ticker_value.price + (self.money - self.initial_money)
+                reward = self.stock_owned * (ticker_value.price - self.last_ticker_price)
             # short
             elif action == 2:
-                if self.stock_owned > 0:
-                    self.money += ticker_value.price
-                    self.stock_owned -= 1
-                    reward = ticker_value.price - self.last_ticker_price - self.transaction_cost
-                else:
-                    action_invalid = True
+                # if self.stock_owned > 0:
+                #     self.money += self.stock_owned * self.last_ticker_price
+                #     reward = self.stock_owned * (self.last_ticker_price - ticker_value.price) - self.transaction_cost * self.last_ticker_price
+                #     self.stock_owned = 0
+                # else:
+                self.stock_owned -= 1
+                self.money += self.last_ticker_price
+                reward = self.stock_owned * (ticker_value.price - self.last_ticker_price) + (self.last_ticker_price - ticker_value.price) - self.transaction_cost * self.last_ticker_price
 
         # unadjusted_reward = ticker_value.price * self.stock_owned + self.money
         # reward = unadjusted_reward - self.last_reward
         # self.last_reward = unadjusted_reward
         # Give large negative reward if action is invalid
-        if action_invalid:
-            reward = -100 * self.initial_money
+        # if action_invalid:
+        #     reward = -100 * self.initial_money
 
         self.last_ticker_price = ticker_value.price
 
         # print(f'Asset value: {unadjusted_reward}, money: {self.money}, stock owned: {self.stock_owned}, reward: {reward} from taking action {action}')
-        state = TradingState(money=self.money, stock_owned=self.stock_owned, **ticker_value._asdict())
+        state = TradingState(stock_owned=self.stock_owned, **ticker_value._asdict())
 
         return state, reward, done, {}
 
