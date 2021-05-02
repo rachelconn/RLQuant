@@ -14,15 +14,15 @@ tf.get_logger().setLevel('WARNING')
 
 # Param config
 model_name = 'lstm_dqn'
-num_training = 20
-num_test = 5
-lr = 0.0003
-epsilon = 0.8
+num_training = 30
+testing_stocks = ['IMAX', 'PCG', 'M', 'SHLDQ', 'ANGI', 'ADMS', 'WBA','TSLA', 'AAPL', 'WMT', 'MSFT']
+lr = 0.0001
+epsilon = 0.99
 min_epsilon = 0.01
-epsilon_decay = 0.99
-gamma = 0.8
-layer_nodes = [128, 256, 128]
-time_steps = 4
+epsilon_decay = 0.96
+gamma = 0.99
+layer_nodes = [64, 128, 128]
+time_steps = 8
 replay_buffer_size = 1_000_000
 batch_size = 100
 batches_per_episode = 10
@@ -33,13 +33,17 @@ batches_until_target_update = update_target_every
 
 # Create training environments
 print('Creating training/test environments...')
-training_envs, test_envs = generate_training_test_environments('data/ticker_list/nyse-listed.csv', num_training, num_test, seed=0)
+training_envs, _ = generate_training_test_environments('data/ticker_list/nyse-listed.csv', num_training, 0, seed=0)
+test_envs = [TradingEnvironment(ticker) for ticker in testing_stocks]
 print('Done setting up environments.')
 
 # Create model to use across training
 model_base_save_location = os.path.join('models', model_name)
+recent_model_base_save_location = os.path.join('models', f'{model_name}_recent')
 model_save_location = os.path.join(model_base_save_location, 'model')
 target_model_save_location = os.path.join(model_base_save_location, 'target_model')
+recent_model_save_location = os.path.join(recent_model_base_save_location, 'model')
+recent_target_model_save_location = os.path.join(recent_model_base_save_location, 'target_model')
 if os.path.exists(model_save_location):
     print(f'Loaded existing model from {model_base_save_location}')
     model, target_model = load_dqn_model(model_save_location, target_model_save_location)
@@ -84,5 +88,8 @@ for i in count(1):
         model.save(model_save_location)
         target_model.save(target_model_save_location)
         print(f'Saved model to {model_base_save_location}.')
+    else:
+        model.save(recent_model_save_location)
+        target_model.save(recent_target_model_save_location)
 
     training_envs, _ = generate_training_test_environments('data/ticker_list/nyse-listed.csv', num_training, 0)
