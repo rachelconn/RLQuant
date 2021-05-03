@@ -1,3 +1,4 @@
+import argparse
 import datetime
 from matplotlib import pyplot
 from collections import deque, namedtuple
@@ -12,6 +13,10 @@ from utils.plot_stock import plot_stock
 
 """ Tests an already trained model over a wide range of stocks """
 
+parser = argparse.ArgumentParser(description='Tests a trained model on historical stock data.')
+parser.add_argument('-m', type=str, help='relative location of the model to test')
+parser.add_argument('-t', type=str, default=None, help='a single stock ticker to test performance on')
+parser.add_argument('-d', action='store_const', const=True, default=False, help='a single stock ticker to test performance on')
 
 # Configurable parameters
 model_name = 'lstm_dqn_high_t_no_money_09_gamma_percent_fee_10'
@@ -25,23 +30,6 @@ seed = 123123123
 # Constants
 ticker_list_location = 'data/ticker_list/nyse-listed.csv'
 dow_stocks = ['MMM', 'AXP', 'AMGN', 'AAPL', 'BA', 'CAT', 'CVX', 'CSCO', 'KO', 'GS', 'HD', 'HON', 'IBM', 'INTC', 'JNJ', 'JPM', 'MCD', 'MRK', 'MSFT', 'NKE', 'PG', 'CRM', 'TRV', 'UNH', 'VZ', 'V', 'WBA', 'WMT', 'DIS']
-model_save_location = os.path.join('models', model_name)
-
-# Load model
-try:
-    if model_is_lstm:
-        if model_is_dqn:
-            model_save_location = os.path.join(model_save_location, 'model')
-            model, _ = load_dqn_model(model_save_location, model_save_location)
-        else:
-            actor_save_location = os.path.join(model_save_location, 'actor')
-            critic_save_location = os.path.join(model_save_location, 'critic')
-            model, _ = load_a2c_lstm_model(actor_save_location, critic_save_location)
-    else:
-        model = load_a2c_model(model_save_location)
-except Exception as e:
-    print(f'Error loading model: {str(e)}')
-    exit(1)
 
 Decision = namedtuple('Decision', ('ticker', 'action', 'confidence'))
 
@@ -49,8 +37,10 @@ class MarketTester:
     def __init__(self, *_, num_stocks, initial_money, seed, model_is_lstm, model_is_dqn, use_dow_stocks=False):
         # Create environments
         if use_dow_stocks:
+            print('Using DOW stocks')
             self.stock_envs = [TradingEnvironment(ticker) for ticker in dow_stocks]
         else:
+            print(f'Using {num_stocks} random stocks')
             self.stock_envs, _ = generate_training_test_environments(ticker_list_location, num_stocks, 0, seed=seed)
 
         self.nA = self.stock_envs[0].action_space.n
@@ -201,8 +191,31 @@ class MarketTester:
         pyplot.plot_date(dates, portfolio_value_history, 'bo-', markersize=2)
         pyplot.show()
 
+if __name__ == '__main__':
+    args = parser.parse_args()
 
-MarketTester(num_stocks=num_stocks, initial_money=initial_money, seed=seed, model_is_lstm=model_is_lstm, model_is_dqn=model_is_dqn).run()
+    model_save_location = os.path.join(args.m)
 
-# Use to analyze performance on a single stock
-# plot_stock(model, ticker)
+    # Load model
+    try:
+        if model_is_lstm:
+            if model_is_dqn:
+                model_save_location = os.path.join(model_save_location, 'model')
+                model, _ = load_dqn_model(model_save_location, model_save_location)
+            else:
+                actor_save_location = os.path.join(model_save_location, 'actor')
+                critic_save_location = os.path.join(model_save_location, 'critic')
+                model, _ = load_a2c_lstm_model(actor_save_location, critic_save_location)
+        else:
+            model = load_a2c_model(model_save_location)
+    except Exception as e:
+        print(f'Error loading model: {str(e)}')
+        exit(1)
+
+    # If ticker specified, run on that ticker. Otherwise run a market test
+    ticker = args.t
+    if ticker:
+        plot_stock(model, ticker)
+    else:
+        use_dow_stocks = args.d
+        MarketTester(num_stocks=num_stocks, initial_money=initial_money, seed=seed, model_is_lstm=model_is_lstm, model_is_dqn=model_is_dqn, use_dow_stocks=use_dow_stocks).run()
