@@ -65,4 +65,5 @@ def plot_stock(model, ticker):
     plt.title(f'Stock and holding value over time for {ticker}')
     plt.plot_date(dates, stock_values, '-', color='orange')
     plt.plot_date(dates, portfolio_values, '-', color='blue')
+    plt.legend(['Stock value', 'Holding value (held money + stock value)'])
     plt.show()
